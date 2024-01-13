@@ -128,14 +128,14 @@ async fn main() -> Result<()> {
         let (stream, addr) = match listener.accept().await {
             Ok((stream, addr)) => (stream, addr),
             Err(e) => {
-                println!("Accept error = {:?}", e);
+                eprintln!("Accept error = {:?}", e);
                 continue;
             }
         };
 
         tokio::spawn(async move {
             if let Err(e) = handle_client(stream, addr).await {
-                println!("Error handling client: {:?} {:?}", addr, e);
+                eprintln!("Error handling client: {:?} {:?}", addr, e);
             };
         });
     }

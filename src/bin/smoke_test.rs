@@ -33,14 +33,14 @@ async fn main() -> Result<()> {
         let (socket, addr) = match listener.accept().await {
             Ok((socket, addr)) => (socket, addr),
             Err(e) => {
-                println!("Accept error = {:?}", e);
+                eprintln!("Accept error = {:?}", e);
                 continue;
             }
         };
 
         tokio::spawn(async move {
             if let Err(e) = handle_client(socket, addr).await {
-                println!("Error handling client: {:?} {:?}", addr, e);
+                eprintln!("Error handling client: {:?} {:?}", addr, e);
             };
         });
     }
