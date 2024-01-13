@@ -45,7 +45,7 @@ async fn handle_client(stream: TcpStream, addr: SocketAddr) -> Result<()> {
                 .write_all(serde_json::to_string(&malformed_response)?.as_bytes())
                 .await
                 .context(format!("Failed to write data to socket {:?}", addr))?;
-            reader.write_u8(10).await?;
+            reader.write_all(b"\n").await?;
             line.clear();
 
             continue;
@@ -63,7 +63,7 @@ async fn handle_client(stream: TcpStream, addr: SocketAddr) -> Result<()> {
                 .write_all(serde_json::to_string(&malformed_response)?.as_bytes())
                 .await
                 .context(format!("Failed to write data to socket {:?}", addr))?;
-            reader.write_u8(10).await?;
+            reader.write_all(b"\n").await?;
             line.clear();
 
             continue;
@@ -82,7 +82,7 @@ async fn handle_client(stream: TcpStream, addr: SocketAddr) -> Result<()> {
             .write_all(serialized_response.as_bytes())
             .await
             .context(format!("Failed to write data to socket {:?}", addr))?;
-        reader.write_u8(10).await?;
+        reader.write_all(b"\n").await?;
         line.clear()
     }
 
