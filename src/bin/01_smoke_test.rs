@@ -3,11 +3,11 @@ use std::net::SocketAddr;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 
-async fn handle_client(mut socket: TcpStream, addr: SocketAddr) -> Result<()> {
+async fn handle_client(mut stream: TcpStream, addr: SocketAddr) -> Result<()> {
     let mut buf = [0; 1024];
 
     loop {
-        let n = socket
+        let n = stream
             .read(&mut buf)
             .await
             .context(format!("Failed to read data from socket {:?}", addr))?;
@@ -16,7 +16,7 @@ async fn handle_client(mut socket: TcpStream, addr: SocketAddr) -> Result<()> {
             return Ok(());
         }
 
-        socket
+        stream
             .write_all(&buf[..n])
             .await
             .context(format!("Failed to write data to socket {:?}", addr))?;
