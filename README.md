@@ -1,4 +1,4 @@
-# protohacke_rs
+# protohacke-rs
 
 My solutions to the [Protohackers](https://protohackers.com) challenge, written in Rust.
 
