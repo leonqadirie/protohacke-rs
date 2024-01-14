@@ -30,8 +30,8 @@ async fn main() -> Result<()> {
         .context("couldn't create TcpListener")?;
 
     loop {
-        let (socket, addr) = match listener.accept().await {
-            Ok((socket, addr)) => (socket, addr),
+        let (stream, addr) = match listener.accept().await {
+            Ok((stream, addr)) => (stream, addr),
             Err(e) => {
                 eprintln!("Accept error = {:?}", e);
                 continue;
@@ -39,7 +39,7 @@ async fn main() -> Result<()> {
         };
 
         tokio::spawn(async move {
-            if let Err(e) = handle_client(socket, addr).await {
+            if let Err(e) = handle_client(stream, addr).await {
                 eprintln!("Error handling client: {:?} {:?}", addr, e);
             };
         });
