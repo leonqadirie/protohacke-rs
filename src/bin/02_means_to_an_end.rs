@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use std::net::SocketAddr;
 use std::ops::Bound::Included;
 use std::time::Duration;
-use tokio::io::{AsyncReadExt, AsyncWriteExt, BufReader};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::time::timeout;
 
@@ -34,26 +34,24 @@ impl Message {
     }
 }
 
-async fn handle_client(stream: TcpStream, addr: SocketAddr) -> Result<()> {
+async fn handle_client(mut stream: TcpStream, addr: SocketAddr) -> Result<()> {
     // Just to learn the concept of explicit timeouts
     let timeout_duration = Duration::from_millis(5000);
     let mut map = BTreeMap::new();
-    let mut reader = BufReader::new(stream);
-    let mut message_buffer = [0; 9];
+    let (mut reader, mut writer) = stream.split();
+    let mut buf = [0; 9];
 
-    while let Ok(_num_bytes) =
-        timeout(timeout_duration, reader.read_exact(&mut message_buffer)).await
-    {
-        match Message::parse(message_buffer) {
+    while let Ok(_num_bytes) = timeout(timeout_duration, reader.read_exact(&mut buf)).await {
+        match Message::parse(buf) {
             Message::Insert { price, timestamp } => {
                 map.insert(timestamp, price);
-                message_buffer.fill(0);
+                buf.fill(0);
 
                 ()
             }
             Message::Query { mintime, maxtime } => {
                 if maxtime < mintime {
-                    reader
+                    writer
                         .write(&[0])
                         .await
                         .context(format!("Failed to write data to socket: {:?}", addr))?;
@@ -69,11 +67,11 @@ async fn handle_client(stream: TcpStream, addr: SocketAddr) -> Result<()> {
                     0 => 0,
                     count => (acc / count) as i32,
                 };
-                reader
+                writer
                     .write_i32(mean)
                     .await
                     .context(format!("Failed to write data to socket: {:?}", addr))?;
-                message_buffer.fill(0);
+                buf.fill(0);
 
                 ()
             }
