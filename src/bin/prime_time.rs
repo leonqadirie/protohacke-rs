@@ -4,6 +4,8 @@ use std::net::SocketAddr;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::{TcpListener, TcpStream};
 
+use protohackers::utils;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct Request {
     method: String,
@@ -68,8 +70,8 @@ async fn handle_client(stream: TcpStream, addr: SocketAddr) -> Result<()> {
 
             continue;
         }
-        let is_prime = is_prime(request.number);
 
+        let is_prime = utils::is_prime(request.number);
         let response = CorrectResponse {
             method: "isPrime",
             prime: is_prime,
@@ -87,35 +89,6 @@ async fn handle_client(stream: TcpStream, addr: SocketAddr) -> Result<()> {
     }
 
     Ok(())
-}
-
-fn is_prime(n: f64) -> bool {
-    if n.is_sign_negative() {
-        return false;
-    }
-    if n.fract() != 0.0 {
-        return false;
-    }
-
-    // AKS primality test
-    let n = n.round() as u32;
-
-    if n <= 1 {
-        return false;
-    } else if n == 2 || n == 3 {
-        return true;
-    } else if n % 2 == 0 || n % 3 == 0 {
-        return false;
-    }
-
-    let r = (n as f32).sqrt() as u32;
-    for i in (5..=r).step_by(6) {
-        if n % i == 0 || n % (i + 2) == 0 {
-            return false;
-        }
-    }
-
-    true
 }
 
 #[tokio::main]
