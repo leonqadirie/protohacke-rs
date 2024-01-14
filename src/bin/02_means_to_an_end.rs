@@ -47,6 +47,8 @@ async fn handle_client(stream: TcpStream, addr: SocketAddr) -> Result<()> {
         match Message::parse(message_buffer) {
             Message::Insert { price, timestamp } => {
                 map.insert(timestamp, price);
+                message_buffer.fill(0);
+
                 ()
             }
             Message::Query { mintime, maxtime } => {
@@ -71,6 +73,7 @@ async fn handle_client(stream: TcpStream, addr: SocketAddr) -> Result<()> {
                     .write_i32(mean)
                     .await
                     .context(format!("Failed to write data to socket: {:?}", addr))?;
+                message_buffer.fill(0);
 
                 ()
             }
