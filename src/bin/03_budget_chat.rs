@@ -1,4 +1,4 @@
-use anyhow::{bail, Context, Result};
+use anyhow::{bail, Result};
 use futures::sink::SinkExt;
 use futures::StreamExt;
 use std::collections::HashMap;
@@ -7,6 +7,7 @@ use std::sync::Arc;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{mpsc, oneshot};
 use tokio_util::codec::{Framed, LinesCodec};
+use tracing_subscriber::EnvFilter;
 
 #[derive(Debug, Clone)]
 pub struct Client {
@@ -115,6 +116,7 @@ impl ServerHandle {
         let (tx, rx) = mpsc::channel(8);
         let server = Server::new(rx);
         tokio::spawn(run_server(server));
+        tracing::info!("server started");
 
         Self { tx }
     }
@@ -126,7 +128,13 @@ impl ServerHandle {
             respond_to: tx,
         };
         let _ = self.tx.send(msg).await;
-        rx.await.expect("Server Task has crashed")
+
+        rx.await
+            .map_err(|e| {
+                tracing::error!("server task has been killed");
+                e
+            })
+            .unwrap()
     }
 
     pub async fn add_client(&self, client: &Client) {
@@ -144,6 +152,7 @@ impl ServerHandle {
             from: client.addr,
         };
         let _ = self.tx.send(msg).await;
+        tracing::info!("added client {} at addr {}", client.username, client.addr);
     }
 
     pub async fn cut_client(&self, client: &Client) {
@@ -156,6 +165,7 @@ impl ServerHandle {
             from: client.addr,
         };
         let _ = self.tx.send(msg).await;
+        tracing::info!("cut client {} at addr {}", client.username, client.addr);
     }
 
     pub async fn list_names(&self) -> Vec<String> {
@@ -163,7 +173,12 @@ impl ServerHandle {
         let msg = Message::ListNames { respond_to: tx };
 
         let _ = self.tx.send(msg).await;
-        rx.await.expect("Server task has been killed")
+        rx.await
+            .map_err(|e| {
+                tracing::error!("server task has been killed");
+                e
+            })
+            .unwrap()
     }
 
     pub async fn broadcast(&self, message: String, from: SocketAddr) {
@@ -172,10 +187,12 @@ impl ServerHandle {
             from,
         };
         let _ = self.tx.send(msg).await;
+        tracing::info!("broadcasted: {}", message);
     }
 }
 
 async fn handle_client(stream: TcpStream, addr: SocketAddr, server: ServerHandle) -> Result<()> {
+    tracing::info!("started client at socket {}", addr);
     let mut lines = Framed::new(stream, LinesCodec::new());
 
     let welcome_message = "Welcome to budgetchat! What shall I call you?";
@@ -184,8 +201,12 @@ async fn handle_client(stream: TcpStream, addr: SocketAddr, server: ServerHandle
     let mut username = "".to_owned();
     let mut username_validated = false;
     while !username_validated {
-        let Some(Ok(name)) = lines.next().await else {
-            bail!("Username couldn't be assigned")
+        tracing::debug!("asking for username");
+
+        let name = match lines.next().await {
+            Some(Ok(name)) => name,
+            Some(Err(e)) => bail!(format!("username couldn't be assigned: {}", e)),
+            None => bail!("Username couldn't be assigned"),
         };
         let name_is_valid = validate_username(&name);
         if !name_is_valid {
@@ -207,6 +228,9 @@ async fn handle_client(stream: TcpStream, addr: SocketAddr, server: ServerHandle
         }
     }
 
+    tracing::info!("username set: {}", username);
+
+    tracing::debug!("set username to: {}", username);
     let user_list = server.list_names().await;
     lines
         .send(format!("* The room contains: {:?}", user_list))
@@ -248,24 +272,30 @@ fn validate_username(username: &str) -> bool {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::from_default_env())
+        .init();
+
     let server = ServerHandle::new();
-    let listener = TcpListener::bind("127.0.0.1:4242")
-        .await
-        .context("couldn't create TcpListener")?;
+    let listener = TcpListener::bind("127.0.0.1:4242").await.map_err(|e| {
+        tracing::error!("couldn't create TcpListener: {}", e);
+        e
+    })?;
 
     loop {
         let (stream, addr) = match listener.accept().await {
             Ok((stream, addr)) => (stream, addr),
             Err(e) => {
-                eprintln!("Accept error = {:?}", e);
+                tracing::error!("accept error = {:?}", e);
                 continue;
             }
         };
+        tracing::info!("started listening on: {}", addr);
 
         let owned_server = server.to_owned();
         tokio::spawn(async move {
             if let Err(e) = handle_client(stream, addr, owned_server).await {
-                eprintln!("Error handling client: {:?} {:?}", addr, e);
+                tracing::error!("error handling client: {:?} - {:?}", addr, e);
             };
         });
     }
